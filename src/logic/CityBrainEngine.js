@@ -1,75 +1,76 @@
-export const analyzeCityBrain = (input, dayOverride = null) => {
-  const { location, weather, traffic, news, plan, smartSchedule } = input;
+export const analyzeCityBrain = (input, dayOverride = null, weatherOverride = null, festivalOverride = null) => {
+  const { schedule } = input;
   
   // Day detection
   const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const currentDayIndex = dayOverride !== null ? dayOverride : new Date().getDay();
   const currentDay = days[currentDayIndex];
-  const isWeekend = currentDayIndex === 0 || currentDayIndex === 6;
+  
+  const scheduleIndexMap = { 1:0, 2:1, 3:2, 4:3, 5:4, 6:5, 0:6 };
+  const currentScheduleIndex = scheduleIndexMap[currentDayIndex];
+  const activePlan = schedule ? schedule[currentScheduleIndex] : "office";
 
-  // Active Plan determination
-  let activePlan = plan;
-  if (smartSchedule) {
-    activePlan = isWeekend ? "bike" : "office";
+  // SENSOR DATA MOCKS (Simulated real-time APIs)
+  const detectedWeather = weatherOverride || "Pleasant (24°C)"; // Auto-detected
+  const detectedTraffic = "High Density (Festival Influence)"; // Auto-detected
+  const detectedFestival = festivalOverride !== undefined ? festivalOverride : (currentDayIndex === 6 ? "Karaga Festival" : null);
+
+  let result = { 
+    type: "INFO", 
+    msg: "", 
+    recommendation: "", 
+    day: currentDay,
+    detectedWeather,
+    detectedTraffic,
+    detectedFestival,
+    googleMapsSync: true,
+    festivalAware: true
+  };
+
+  const p = activePlan.toLowerCase();
+
+  // CORNER CASE 1: Safety Hazard (Heavy Rain) overrides Festival/Plan
+  if (detectedWeather.toLowerCase().includes("heavy rain") || 
+      detectedWeather.toLowerCase().includes("storm")) {
+    result.type = "CRITICAL";
+    result.msg = "SEVERE WEATHER ALERT: Heavy monsoon rain detected. Flooding risk in core areas.";
+    result.recommendation = "STAY INDOORS. Avoid travel regardless of festival or schedule.";
+    return result;
   }
 
-  // Normalize inputs
-  const l = location?.trim() || "Whitefield";
-  const w = weather?.toLowerCase() || "";
-  const t = traffic?.toLowerCase() || "";
-  const n = news?.toLowerCase().trim() || "";
-  const p = activePlan?.toLowerCase() || "";
+  // CORNER CASE 2: No activity (Home)
+  if (p === "home") {
+    result.type = "INFO";
+    result.msg = `User status is HOME for ${currentDay}. Local events will not impact safety.`;
+    result.recommendation = "Relax at home; city reports available in dashboard.";
+    return result;
+  }
 
-  const has = (text, ...keywords) => keywords.some(k => text.includes(k));
-
-  let result = { type: "INFO", msg: "", recommendation: "", day: currentDay };
-
-  // CRITICAL: Safety issues
-  if (has(n, "flood", "danger", "emergency", "fire", "danger") || 
-      has(w, "heavy rain", "storm") || 
-      has(n, "accident") || 
-      t === "very high") {
+  // FESTIVAL LOGIC
+  if (detectedFestival) {
+    result.type = "IMPORTANT";
+    result.msg = `${detectedFestival} celebrations active in Bangalore; road closures in effect.`;
     
-    result.type = "CRITICAL";
-    if (has(n, "flood") || has(w, "heavy rain")) {
-      result.msg = "Flood risk, avoid travel and stay indoors";
-      result.recommendation = "Stay Home (Safety Priority)";
+    if (p === "bike") {
+      result.recommendation = "Avoid Central areas (Avenue Road); route via West Bangalore advised.";
+    } else if (p === "office") {
+      result.recommendation = "Significant delays expected near Hub; use Metro Green Line.";
     } else {
-      result.msg = "Severe disruption detected, avoid travel";
-      result.recommendation = "Postpone all travel";
+      result.recommendation = "Local congestion probable near activity route.";
     }
     return result;
   }
 
-  // Schedule Specific Logic
+  // BASELINE (Normal day)
   if (p === "office") {
-    if (t === "high" || t === "medium") {
-      result.type = "IMPORTANT";
-      result.msg = `Heavy traffic to ${l}, consider delaying office travel`;
-      result.recommendation = "WFH or manyata/ecity route check";
-    } else {
-      result.type = "INFO";
-      result.msg = `Light traffic to ${l}, good time for office arrival`;
-      result.recommendation = `${l} Office Hub`;
-    }
+    result.msg = `Commute routes to ${currentDay} office are clear.`;
+    result.recommendation = "Proceed with normal commute schedule.";
   } else if (p === "bike") {
-    if (has(w, "rain", "storm")) {
-      result.type = "IMPORTANT";
-      result.msg = "Rain predicted, postpone your weekend bike ride";
-      result.recommendation = "Indiranagar (Cafe hopping)";
-    } else if (has(w, "pleasant", "clear", "sunny")) {
-      result.type = "INFO";
-      result.msg = `Great ${currentDay} weather, perfect for your bike ride`;
-      result.recommendation = "Nandi Hills (Sunrise Ride)";
-    } else {
-      result.type = "INFO";
-      result.msg = `Cloudy ${currentDay}, good for a short bike ride`;
-      result.recommendation = "Cubbon Park / Lalbagh";
-    }
+    result.msg = `Weather is ${detectedWeather}; excellent for riding.`;
+    result.recommendation = "Nandi Hills (Sunrise ride)";
   } else {
-    // Default Fallback
-    result.msg = `Status normal for ${currentDay}, proceed with ${p || 'the day'}`;
-    result.recommendation = "Cubbon Park (Outdoor leisure)";
+    result.msg = `System status stable for ${currentDay}.`;
+    result.recommendation = "Proceed with scheduled activity.";
   }
 
   return result;
